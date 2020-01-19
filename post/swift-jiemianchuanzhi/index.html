@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Swift的几种界面传值方式 | llj的blog</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://luolijie97.github.io//favicon.ico?v=1579410045971">
+<link rel="stylesheet" href="https://luolijie97.github.io//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="swift常用界面传值方式如下：
+
+
+
+属性
+单例
+通知
+代理
+闭包
+
+
+
+
+
+
+常用
+常用
+常用
+
+
+
+下面将使用ViewController.swift和SecondViewController.swift加以说明
+1.属性传值
+
+//..." />
+    <meta name="keywords" content="Swift学习" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://luolijie97.github.io/">
+        <img src="https://luolijie97.github.io//images/avatar.png?v=1579410045971" class="site-logo">
+        <h1 class="site-title">llj的blog</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      llj's blog
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://luolijie97.github.io//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Swift的几种界面传值方式</h2>
+            <div class="post-date">2020-01-19</div>
+            
+            <div class="post-content" v-pre>
+              <p>swift常用界面传值方式如下：</p>
+<table>
+<thead>
+<tr>
+<th>属性</th>
+<th>单例</th>
+<th>通知</th>
+<th>代理</th>
+<th>闭包</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td></td>
+<td></td>
+<td>常用</td>
+<td>常用</td>
+<td>常用</td>
+</tr>
+</tbody>
+</table>
+<p>下面将使用<code>ViewController.swift</code>和<code>SecondViewController.swift</code>加以说明</p>
+<h3 id="1属性传值">1.属性传值</h3>
+<blockquote>
+<pre><code class="language-swift">//属性传值：从ViewController跳转传值给SecondViewController
+
+//SecondViewController.swift
+class SecondViewController: UIViewController {
+var textField: UITextField!
+//属性传值
+var tfStr: String!
+}
+override func viewDidLoad() {
+super.viewDidLoad()
+self.view.backgroundColor = .white
+setupUI() //相关布局
+//属性传值
+textField.text = tfStr
+}
+
+//ViewController.swift
+class ViewController: UIViewController {
+fileprivate var textField: UITextField!
+//按钮点击方法
+@objc fileprivate func btnAction() {
+ let svc = SecondviewController()
+ //传值
+ svc.tfStr = textField.text
+ //跳转
+ navigationController?.pushViewController(svc, animated: true)
+}
+}
+</code></pre>
+</blockquote>
+<h3 id="2单例传值">2.单例传值</h3>
+<blockquote>
+<pre><code class="language-swift">//单例传值：从ViewController跳转传值给SecondViewController
+
+//Singleton.swift
+class Singleton {
+//单例属性，用来传值
+	var text: String!
+static let singleton = Singleton()
+//单例的实例方法
+func share() -&gt; Singleton {
+ return .singleton
+}
+}
+
+//ViewController.swift
+class ViewController: UIViewController {
+fileprivate var textField: UITextField!
+//按钮点击方法
+@objc fileprivate func btnAction() {
+ //传值
+ let singleton = Singleton.singleton.share()
+ singleton.text = textField.text
+ //跳转
+ navigationController?.pushViewController(svc, animated: true)
+}
+}
+
+//SecondViewController.swift
+class SecondViewController: UIViewController {
+var textField: UITextField!
+var tfStr: String!
+override func viewDidLoad() {
+ super.viewDidLoad()
+ self.view.backgroundColor = .white
+ setupUI()
+ //单例传值
+ tfStr = Singleton.singleton.share().text
+ print(tfStr!)
+ textField.text = tfStr
+}
+}
+
+</code></pre>
+</blockquote>
+<h3 id="3通知传值">3.通知传值</h3>
+<blockquote>
+<pre><code class="language-swift">//通知传值：从SecondViewController跳转传值给ViewController
+
+//SecondViewController.swift
+class SecondViewController: UIViewController {
+var textField: UITextField!
+//按钮点击方法
+@objc func btnAction() {
+//通知传值：发送通知
+NotificationCenter.default.post(name: NSNotification.Name(rawValue: &quot;notifyName&quot;), object: nil, userInfo: [&quot;text&quot;: self.textField.text ?? &quot;&quot;])
+		//跳转
+navigationController?.popViewController(animated: true)
+}
+}
+
+//ViewController.swift
+class ViewController: UIViewController {
+fileprivate var textField: UITextField!
+override func viewDidLoad() {
+ super.viewDidLoad()
+ self.view.backgroundColor = .white
+ setupUI()
+ //注册通知
+ NotificationCenter.default.addObserver(forName: NSNotification.Name(rawValue: &quot;notifyName&quot;), object: nil, queue: .main) { (notification) in                                                                                                                       self.textField.text = &quot;\(notification.userInfo?[&quot;text&quot;] ?? &quot;&quot;)&quot;                                                                                                                         		}
+}
+//注销通知
+deinit {
+ NotificationCenter.default.removeObserver(self)
+}
+}
+
+
+</code></pre>
+</blockquote>
+<h3 id="4代理传值">4.代理传值</h3>
+<blockquote>
+<pre><code class="language-swift">//代理传值：从SecondViewController跳转传值给ViewController
+
+//SecondViewController.swift
+//1.声明协议与方法
+@objc protocol SecondViewControllerDelegate: class {
+@objc optional func viewController(viewController: SecondViewController, popWith)
+}
+
+class SecondViewController: UIViewController {
+//2.声明协议属性
+weak var delegate: SecondVieControllerDelegate!
+	var textField: UITextField!
+
+@objc func btnAction() {
+ //3.协议调用
+ if let delegate = self.delegate {
+   delegate.viewController?(viewController: self, popWithValue: self.textField.text ?? &quot;&quot;)
+ }
+}
+}
+
+//ViewController.swift
+//4.遵守协议
+class ViewController: UIViewController, SecondViewControllerDelegate {
+fileprivate var textField: UITextField!
+
+//5.设置代理
+let svc = SecondViewController()
+svc.delegate = self
+
+//6.实现协议方法
+//MARK: - SecondViewControllerDelegate
+func viewController(viewController: SecondViewController, popWithValue: String) {
+     textField.text = popWithValue
+ }
+}
+</code></pre>
+</blockquote>
+<pre><code>### 5.闭包传值
+</code></pre>
+<blockquote>
+<pre><code class="language-swift">//闭包传值：从SecondViewController跳转传值给ViewController
+
+//SecondViewController.swift
+class SecondViewController: UIViewController {
+var textField: UITextField!
+
+//1.声明闭包类型
+typealias ClosureName = (String) -&gt; ()
+//2.声明闭包属性
+var closure: ClosureName!
+//3.设置闭包传值调用方法
+func callBack(closure: @escaping ClosureName) {
+ self.closure = closure
+}
+
+@objc func btnAction() {
+ //4.闭包回调
+ guard (self.closure != nil) else {
+   return
+ }
+ closure(textField.text!)
+ 
+ navigationController?.popViewController(animated: true)
+}
+}
+
+//ViewController.swift
+class ViewController: UIViewController {
+fileprivate var textField: UITextField!
+
+@objc fileprivate func btnAction() {
+ let svc = SecondViewController()
+ //5.调用闭包方法
+ svc.callBack { (value) in
+     self.textField.text = value
+ }
+}
+}
+</code></pre>
+</blockquote>
+
+            </div>
+            
+              <div class="tag-container">
+                
+                  <a href="https://luolijie97.github.io/tag/2r_YYv3HN" class="tag">
+                    Swift学习
+                  </a>
+                
+              </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://luolijie97.github.io/post/Swift project in 30 days 学习笔记">
+                  <h3 class="post-title">
+                    Swift project in 30 days 学习笔记
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>
