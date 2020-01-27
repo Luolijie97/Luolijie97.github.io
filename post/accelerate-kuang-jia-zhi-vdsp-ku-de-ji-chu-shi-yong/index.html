@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" >
+
+<title>Accelerate框架之vDSP库的基础使用 | llj的blog</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+
+<link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
+<link rel="shortcut icon" href="https://luolijie97.github.io//favicon.ico?v=1580101363572">
+<link rel="stylesheet" href="https://luolijie97.github.io//styles/main.css">
+
+
+
+<link rel="stylesheet" href="https://unpkg.com/aos@next/dist/aos.css" />
+<script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+
+
+
+    <meta name="description" content="
+在实际项目中，我需要将使用C语言编写的音高提取算法转成swift playground中能运行的swift版本，在其中要改写fft变换等C语言中需要进行上万次循环的代码。最开始我采用了最简单粗暴的方法进行直接改写，虽然能得到正确的结果，但..." />
+    <meta name="keywords" content="" />
+  </head>
+  <body>
+    <div id="app" class="main">
+
+      <div class="sidebar" :class="{ 'full-height': menuVisible }">
+  <div class="top-container" data-aos="fade-right">
+    <div class="top-header-container">
+      <a class="site-title-container" href="https://luolijie97.github.io/">
+        <img src="https://luolijie97.github.io//images/avatar.png?v=1580101363572" class="site-logo">
+        <h1 class="site-title">llj的blog</h1>
+      </a>
+      <div class="menu-btn" @click="menuVisible = !menuVisible">
+        <div class="line"></div>
+      </div>
+    </div>
+    <div>
+      
+        
+          <a href="/" class="site-nav">
+            首页
+          </a>
+        
+      
+        
+          <a href="/archives" class="site-nav">
+            归档
+          </a>
+        
+      
+        
+          <a href="/tags" class="site-nav">
+            标签
+          </a>
+        
+      
+        
+          <a href="/post/about" class="site-nav">
+            关于
+          </a>
+        
+      
+    </div>
+  </div>
+  <div class="bottom-container" data-aos="flip-up" data-aos-offset="0">
+    <div class="social-container">
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    </div>
+    <div class="site-description">
+      llj's blog
+    </div>
+    <div class="site-footer">
+      Powered by <a href="https://github.com/getgridea/gridea" target="_blank">Gridea</a> | <a class="rss" href="https://luolijie97.github.io//atom.xml" target="_blank">RSS</a>
+    </div>
+  </div>
+</div>
+
+
+      <div class="main-container">
+        <div class="content-container" data-aos="fade-up">
+          <div class="post-detail">
+            <h2 class="post-title">Accelerate框架之vDSP库的基础使用</h2>
+            <div class="post-date">2020-01-27</div>
+            
+            <div class="post-content" v-pre>
+              <blockquote>
+<p>在实际项目中，我需要将使用C语言编写的音高提取算法转成swift playground中能运行的swift版本，在其中要改写fft变换等C语言中需要进行上万次循环的代码。最开始我采用了最简单粗暴的方法进行直接改写，虽然能得到正确的结果，但实际性能上完全无法达到要求。在查阅有关资料后，发现Accelerate框架正是Swift中用来进行大量数学和图像计算的工具，但网络上相关中文文档总结几乎没有深入介绍，现根据我对developer documentation和stackflow上的相关提问，对项目中使用到的vDSP库进行小结</p>
+</blockquote>
+<h3 id="引用原因">引用原因</h3>
+<ul>
+<li>我们以向量运算为例展开说明：</li>
+</ul>
+<blockquote>
+<pre><code class="language-swift">    let a: [Float] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    let b: [Float] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+    let c: Float = 2
+    var d = [Float](repeating: .nan, count: a.count)
+
+    var startTime = CFAbsoluteTimeGetCurrent()
+    //(a[i]+b[i])*(a[i]-b[i])
+    for i in 0..&lt;a.count {
+        d[i] = (a[i] + b[i]) * (a[i] - b[i])
+    }
+    print(d)
+    var endTime = CFAbsoluteTimeGetCurrent()
+    print(&quot;caculate: \((endTime - startTime) * 1000) ms&quot;) 
+		//caculate: 0.32007694244384766 ms
+
+    startTime = CFAbsoluteTimeGetCurrent()
+    //(a[i]+b[i])*(a[i]-b[i])
+    d = vDSP.multiply(addition: (a, b), subtraction: (a, b))//(a[i]+b[i])*(a[i]-b[i])
+    print(d)
+    endTime = CFAbsoluteTimeGetCurrent()
+    print(&quot;caculate: \((endTime - startTime) * 1000) ms&quot;)
+		//caculate: 0.09799003601074219 ms
+</code></pre>
+<ul>
+<li>这里我们取了长度为10的数组进行了加减乘运算，从运行时间看，后者只用了1/3的时间。当向量长度较大时，比如几千、甚至上万时，vDSP库进行数组运算的效率提升就更为明显了，尤其是在代码中需要多层循环进行计算时。经测试，平均每层循环采用vDSP库中的函数可提高8-10的速度</li>
+</ul>
+</blockquote>
+<h3 id="vdsp库介绍">vDSP库介绍</h3>
+<p>vDSP框架包含用于数字信号处理和大型阵列的通用算法的高度优化的功能的集合</p>
+<h3 id="向量基本运算">向量基本运算</h3>
+<ul>
+<li>
+<p>旧API</p>
+<blockquote>
+<pre><code class="language-swift">let stride = vDSP_Stride(1) //确定运算处理的跨度，1代表对每一个元素进行操作
+let a:[Float] = [2, 4, 3, 4, 5]
+let b:[Float] = [35, 21, 62, 54, 45]
+let len = vDSP_Length(a.count) //操作元素的数量
+var c = [Float](repeating: 0, count: a.count)//存放操作结果
+var d = [Float](repeating: 0, count: a.count)//存放操作结果
+
+//二元运算
+vDSP_vadd(a, stride, b, stride, &amp;c, stride, len) //加法运算
+print(c) // [37.0, 25.0, 65.0, 58.0, 50.0]
+
+vDSP_vsub(a, stride, b, stride, &amp;c, stride, len) //减法运算b-a
+print(c) // [33.0, 17.0, 59.0, 50.0, 40.0]
+
+//以上两句可合成一句
+vDSP_vaddsub(a, stride, b, stride, &amp;c, stride, &amp;d, stride, len)
+print(&quot;add: &quot;, c) //add:  [37.0, 25.0, 65.0, 58.0, 50.0]
+print(&quot;sub: &quot;, d) //sub:  [33.0, 17.0, 59.0, 50.0, 40.0]
+
+vDSP_vmul(a, stride, b, stride, &amp;c, stride, len) //乘法运算
+print(c) //[70.0, 84.0, 186.0, 216.0, 225.0]
+
+vDSP_vdiv(a, stride, b, stride, &amp;c, stride, len) //除法运算b/a
+print(c) //[17.499998, 5.2499995, 20.666666, 13.499999, 8.999999]
+
+//三元运算
+let m:[Float] = [3, 4, 5, 6, 7]
+
+vDSP_vam(a, stride, b, stride, m, stride, &amp;c, stride, len) //c = (a+b)*m
+print(c) //[111.0, 100.0, 325.0, 348.0, 350.0]
+
+vDSP_vma(a, stride, b, stride, m, stride, &amp;c, stride, len) //c = a*b+m
+print(c) //[73.0, 88.0, 191.0, 222.0, 232.0]
+
+vDSP_vmsb(a, stride, b, stride, m, stride, &amp;c, stride, len) //c = a*b-m
+print(c) //[67.0, 80.0, 181.0, 210.0, 218.0]
+
+vDSP_vsbm(a, stride, b, stride, m, stride, &amp;c, stride, len) //c = (a-b)*c
+print(c) //[-99.0, -68.0, -295.0, -300.0, -280.0]
+
+//四元运算
+let n:[Float] = [7, 6, 5, 4, 3]
+
+vDSP_vsbsbm(a, stride, b, stride, m, stride, n, stride, &amp;c, stride, len) //c = (a-b)*(m-n)
+print(c) //[132.0, 34.0, -0.0, -100.0, -160.0]
+
+vDSP_vasbm(a, stride, b, stride, m, stride, n, stride, &amp;c, stride, len) //c = (a+b)*(m-n)
+print(c) //[-148.0, -50.0, 0.0, 116.0, 200.0]
+</code></pre>
+</blockquote>
+</li>
+<li>
+<p>新API</p>
+<blockquote>
+<pre><code class="language-swift"> let a: [Float] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+ let b: [Float] = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100]
+ let c: Float = 2
+ var d = [Float](repeating: .nan, count: a.count)
+ 
+ d = vDSP.add(a, b) //(a[i]+b[i])
+ print(d)
+ d = vDSP.add(5, a) //a[i]+5
+ print(d)
+ d = vDSP.add(multiplication: (a, b), 5) //a[i]*b[i]+5
+ 
+ d = vDSP.subtract(a, b) //a[i]-b[i]
+ print(d)
+ d = vDSP.subtract(multiplication: (a, b), a)//a[i]*b[i]-a[i]
+ print(d)
+ 
+ d = vDSP.multiply(addition: (a, b), c) //(a[i]+b[i])*c[i]
+ print(d)
+ d = vDSP.multiply(addition: (a, b), subtraction: (a, b))//(a[i]+b[i])*(a[i]-b[i])
+ print(d)
+ 
+ 
+ d = vDSP.divide(a, b) //a[i]/b[i]
+ print(d)
+ 
+ print(vDSP.dot(a, b))//a[i]点乘b[i]
+ print(vDSP.absolute(a))//abs(a[i])
+ 
+ 
+ d = vDSP.ramp(withInitialValue: 0, increment: 1, count: a.count) //生成等差数列
+ print(d)
+ 
+ let source:[Float] = [23.0, 2.2, 1.1, 13.2]
+ let result = vDSP.floatingPointToInteger(source, integerType: UInt16.self, rounding: .towardZero) //Float转UInt16
+ print(result)
+ let oriResult = vDSP.integerToFloatingPoint(result, floatingPointType: Float.self) //UInt16转Float
+ print(oriResult)
+ 
+ let array = [12.2, 23.3, 11.1, 34.3, 78.7, 89.8, 56.5, 23.2]
+ let (id, maxResult) = vDSP.indexOfMaximum(array) //获取数组元素的最大值及其索引
+ print(id, maxResult)
+</code></pre>
+</blockquote>
+</li>
+</ul>
+<h3 id="stride和vdsp_length的使用">Stride和vDSP_Length的使用</h3>
+<ul>
+<li><code>针对向量的基本运算,新Api的调用参数更少，方法的使用更加符合swift语言的习惯，但需要对运算的操作对象有其他要求时，我们就需要使用旧Api的相关参数进行设置，而其中改变的便是步长Stride和运算次数vDSP_Length</code></li>
+</ul>
+<blockquote>
+<ul>
+<li><strong>引例</strong></li>
+</ul>
+<pre><code class="language-swift">    let a:[Float] = [10, 20, 30, 40, 50, 60, 70, 80]
+    let b:[Float] = [1, 2, 3, 4, 5, 6, 7, 8]
+    var n = vDSP_Length(a.count)
+    var c = [Float](repeating: .nan, count: a.count)
+    
+    var strideA = vDSP_Stride(1)
+    var strideB = vDSP_Stride(1)
+    var strideC = vDSP_Stride(1)
+    
+    vDSP_vadd(a, strideA, b, strideB, &amp;c, strideC, n)
+    print(c) //[11.0, 22.0, 33.0, 44.0, 55.0, 66.0, 77.0, 88.0]
+</code></pre>
+<ul>
+<li>这里我们进行了向量a和向量b的和运算，将结果存放在向量c中。我们将a,b,c的Stride均设置为1，则表达式将会对a、b中每一个元素进行加法运算，将结果依次存放在c中的每个元素中，这里运算次数为a的元素个数，类型为vDSP_Length</li>
+</ul>
+</blockquote>
+<blockquote>
+<ul>
+<li><strong>改变输入的Stride</strong></li>
+</ul>
+<pre><code class="language-swift">    //改变输入的Stride
+    strideB = vDSP_Stride(3)
+    n = vDSP_Length(3) //运算次数
+    c = [Float](repeating: .nan, count: a.count)
+    vDSP_vadd(a, strideA, b, strideB, &amp;c, strideC, n)
+    print(c) //[11.0, 24.0, 37.0, nan, nan, nan, nan, nan]
+</code></pre>
+<ul>
+<li>我们将b的Stride设为3，运算次数n设为3，则b向量将取出第0、3、6三个位置的元素和a的第0、1、2三个位置的元素进行加法运算，结果保存在c的前三个元素中</li>
+</ul>
+</blockquote>
+<blockquote>
+<ul>
+<li><strong>改变输出的Stride</strong></li>
+</ul>
+<pre><code class="language-swift">    //改变输出的Stride
+    strideA = vDSP_Stride(2)
+    strideB = vDSP_Stride(1)
+    strideC = vDSP_Stride(3)
+    n = vDSP_Length(3)
+    c = [Float](repeating: .nan, count: a.count)
+    vDSP_vadd(a, strideA, b, strideB, &amp;c, strideC, n)
+    print(c) //[11.0, nan, nan, 32.0, nan, nan, 53.0, nan]
+</code></pre>
+<ul>
+<li>a、b、c的Stride分别为2、1、3，运算次数vDSP_Length为3。则将取出a的第0、2、4个位置处的元素，与b的0、1、2位置处的元素相加，结果存放在c的第0、3、6处的位置中</li>
+</ul>
+</blockquote>
+<blockquote>
+<ul>
+<li><strong>使用负Stride</strong></li>
+</ul>
+<pre><code class="language-swift">    //使用负Stride
+    strideA = vDSP_Stride(-1)
+    strideB = vDSP_Stride(1)
+    strideC = vDSP_Stride(1)
+    n = vDSP_Length(a.count)
+    a.withUnsafeBufferPointer { (buffer) in
+        vDSP_vadd(buffer.baseAddress! + buffer.count - 1, strideA, b, strideB, &amp;c, strideC, n)
+    }
+    print(c) //[81.0, 72.0, 63.0, 54.0, 45.0, 36.0, 27.0, 18.0]
+</code></pre>
+<ul>
+<li>向量a的Stride为-1，这时每次运算都将依次取出当前指针所指元素的前一个位置进行运算。在这里，我们将指向向量a指针的初始位置移动到a中的最后一个元素，则每次运算中，a将倒序取出一个数，和b中顺序取出的一个数进行加法运算</li>
+</ul>
+</blockquote>
+<h3 id="dspcomplex与dspsplitcomplex">DSPComplex与DSPSplitComplex</h3>
+<ul>
+<li>
+<p>在实际数学运算中，我们的操作对象往往会涉及到复数域，而在vDSP库中，我们定义了四个结构体对复数进行存储：DSPComplex、DSPDoubleComplex、DSPSplitComplex和DSPDoubleSplitComplex。其中，DSPDoubleComplex、DSPDoubleSplitComplex与DSPComplex、DSPSplitComplex的区别仅在于运算精度的区别。前者为Double双精度，后者为Float单精度。在这里我们就以DSPComplex、DSPSplitComplex为例进行介绍</p>
+</li>
+<li>
+<p>DSPComplex结构</p>
+<pre><code class="language-swift">public struct DSPComplex {
+
+    public var real: Float
+
+    public var imag: Float
+
+    public init()
+
+    public init(real: Float, imag: Float)
+}
+</code></pre>
+<ul>
+<li>DSPComplex以有序对的形式存放了两个浮点类型的数，因而当做相关运算时，其步长Stride应为2的倍数</li>
+</ul>
+</li>
+<li>
+<p>DSPSplitComplex结构</p>
+<pre><code class="language-swift">public struct DSPSplitComplex {
+
+    public var realp: UnsafeMutablePointer&lt;Float&gt;
+
+    public var imagp: UnsafeMutablePointer&lt;Float&gt;
+
+    public init(realp: UnsafeMutablePointer&lt;Float&gt;, imagp: UnsafeMutablePointer&lt;Float&gt;)
+}
+</code></pre>
+<ul>
+<li>DSPSplitComplex中存放了两个UnsafeMutablePointer<Float>类型的数组，一个用来存放实数部分，另一个存放虚数部分。在做相关运算时，其步长Stride是连续的</li>
+</ul>
+</li>
+<li>
+<p>DSPComplex与DSPSplitComplex转化</p>
+<pre><code class="language-swift">    var real:[Float] = [10, 20 ,30, 40, 50, 60, 70, 80]
+    var imag:[Float] = [1, 2, 3, 4, 5, 6, 7, 8]
+    let n = real.count
+    let strideSplitComplex = vDSP_Stride(1)
+    let strideComplex = vDSP_Stride(2)
+    var complex = [DSPComplex](repeating: DSPComplex(), count: n)
+
+    //初始化DSPSplitComplex
+    var splitComplex = DSPSplitComplex(realp: &amp;real, imagp: &amp;imag)
+    //DSPSplitComplex转DSPComplex
+		vDSP_ztoc(&amp;splitComplex, strideSplitComplex, &amp;complex, strideComplex, vDSP_Length(n))
+		//DSPComplex转DSPSplitComplex
+		vDSP_ctoz(&amp;complex, strideComplex, &amp;splitComplex, strideSplitComplex, vDSP_Length(n))
+</code></pre>
+<ul>
+<li>这里vDSP_ztoc和vDSP_ctoz方法分别为DSPSplitComplex转DSPComplex和DSPComplex转DSPSplitComplex。其中要注意DSPComplex的步长为2</li>
+<li>这里我们也可以用新API进行简化：</li>
+</ul>
+<pre><code class="language-swift">    var real:[Float] = [10, 20 ,30, 40, 50, 60, 70, 80]
+    var imag:[Float] = [1, 2, 3, 4, 5, 6, 7, 8]
+  let n = real.count
+    var complex = [DSPComplex](repeating: DSPComplex(), count: n)
+
+		//初始化DSPSplitComplex
+    var splitComplex = DSPSplitComplex(realp: &amp;real, imagp: &amp;imag)
+ 		//DSPSplitComplex转DSPComplex
+    vDSP.convert(splitComplexVector: splitComplex, toInterleavedComplexVector: &amp;complex)
+		//DSPComplex转DSPSplitComplex
+    vDSP.convert(interleavedComplexVector: complex, toSplitComplexVector: &amp;splitComplex)
+</code></pre>
+</li>
+</ul>
+<h3 id="fft相关">FFT相关</h3>
+<ul>
+<li>
+<p>vDSP库，顾名思义，是一个用来做数字信号处理的库，比如傅里叶变换、快速傅里叶变换等。在这里我们简单介绍下我在项目中用到的窗函数和FFT的使用</p>
+</li>
+<li>
+<p>窗函数的使用（汉明窗为例）</p>
+</li>
+</ul>
+<blockquote>
+<pre><code class="language-swift"> //汉明窗函数
+ let windowLength:Double = 2048.0
+ var hammingWindow = [Float](repeating: .nan, count: Int(windowLength))
+ vDSP_hamm_window(&amp;hammingWindow, vDSP_Length(windowLength), 0)
+</code></pre>
+<ul>
+<li>这里我们创建了一个长度为2048的双边汉明窗</li>
+</ul>
+<pre><code class="language-swift">    //汉明窗函数
+    let windowLength:Double = 2048.0
+    //新API
+    let hammingWindow = vDSP.window(ofType: Float.self, usingSequence: .hamming, count: Int(windowLength), isHalfWindow: false)
+</code></pre>
+<ul>
+<li>这里我们使用了新api创建了汉明窗，结果和旧API一致。其中ofType参数确定汉明窗操作的精度，即返回的数组的类型；usingSequence为生成的窗函数序列类型，这里我们使用了汉明窗；count代表生成的序列长度；isHalfWindow值为false，代表生成全部长度的序列</li>
+</ul>
+</blockquote>
+<ul>
+<li>FFT：快速傅里叶变换</li>
+</ul>
+<blockquote>
+<pre><code class="language-swift">		//FFT变换相关参数设置
+ let log2Size = Int(log2(Float(fftLength)))
+ let fftSetup = vDSP_create_fftsetup(vDSP_Length(log2Size), FFTRadix(kFFTRadix2))
+ //变换的输入
+ var complexBuffer = DSPSplitComplex(realp: &amp;realPart, imagp: &amp;imaginaryPart)
+ //FFT变换
+		//第一个参数是fft相关参数；第二个参数是一个inout类型数组，我们将变换的输入数组传入，变换结束后，返回结果也是该参数；第三个参数为FFT变换的长度，要取log2;第三个参数确定fft变换的方面，这里选取FFT_FORWARD前向传播
+ vDSP_fft_zip(fftSetup!, &amp;complexBuffer, 1, vDSP_Length(log2Size), FFTDirection(FFT_FORWARD))
+		//将fft变换结果取模，存放在fftResultNoPhase中（如果需要获取变换的幅值）
+		vDSP_zvabs(&amp;complexBuffer, 1, &amp;fftResultNoPhase, 1, vDSP_Length(fftLength))
+</code></pre>
+<ul>
+<li>我们也可以用新API简化：</li>
+</ul>
+<pre><code class="language-swift">    let log2Size = Int(log2(Float(fftLength)))
+		//FFT变换相关参数设置
+    let fwdFFT = vDSP.FFT(log2n: vDSP_Length(log2Size), radix: .radix2, ofType: DSPSplitComplex.self)!
+		//FFT变换，输入输出为DSPSplitComplex类型
+    fwdFFT.transform(input: input, output: &amp;output, direction: .forward)
+		//变换结果取幅值，存放在fftResultNoPhase中
+    vDSP.absolute(output, result: &amp;fftResultNoPhase)
+</code></pre>
+</blockquote>
+<h3 id="小结">小结</h3>
+<ul>
+<li>vDSP包含用于大型阵列的通用算法的高度优化的功能的集合，可以用来进行复杂的数组运算。在不需要对操作数组的步长Stride和运算次数n进行定制时，我们可以用新API简化调用</li>
+<li>vDSP有强大的信号处理功能，我们可以在Developer Documentation中查阅。这里我们简单介绍了窗函数和FFT变换的设置，更多功能请到官方文档查询。</li>
+</ul>
+
+            </div>
+            
+            
+              <div class="next-post">
+                <div class="next">下一篇</div>
+                <a href="https://luolijie97.github.io/post/swift-jiemianchuanzhi">
+                  <h3 class="post-title">
+                    Swift的几种界面传值方式
+                  </h3>
+                </a>
+              </div>
+            
+
+            
+
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/aos@next/dist/aos.js"></script>
+<script type="application/javascript">
+
+AOS.init();
+
+var app = new Vue({
+  el: '#app',
+  data: {
+    menuVisible: false,
+  },
+})
+
+</script>
+
+
+
+
+
+
+  </body>
+</html>
