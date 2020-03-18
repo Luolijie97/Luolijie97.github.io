@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://luolijie97.github.io/</id>
     <title>llj的blog</title>
-    <updated>2020-03-18T09:59:17.292Z</updated>
+    <updated>2020-03-18T10:06:10.866Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://luolijie97.github.io/"/>
     <link rel="self" href="https://luolijie97.github.io/atom.xml"/>
@@ -10,6 +10,210 @@
     <logo>https://luolijie97.github.io/images/avatar.png</logo>
     <icon>https://luolijie97.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, llj的blog</rights>
+    <entry>
+        <title type="html"><![CDATA[AudioQueue音频队列录音使用]]></title>
+        <id>https://luolijie97.github.io/post/audioqueue-yin-pin-dui-lie-lu-yin-shi-yong</id>
+        <link href="https://luolijie97.github.io/post/audioqueue-yin-pin-dui-lie-lu-yin-shi-yong">
+        </link>
+        <updated>2020-03-18T10:00:25.000Z</updated>
+        <content type="html"><![CDATA[<ul>
+<li>
+<p>上篇介绍了AudioQueue录音的相关原理，这篇为有关实现。相关代码如下：</p>
+<pre><code class="language-swift">//  AudioQueueRecorder.swift
+import Foundation
+import AudioToolbox
+import AVFoundation
+
+/// 录音队列回调函数
+/// - Parameters:
+///   - inUserData: 一个自定义结构，包含音频队列的状态数据
+///   - inAQ: 调用回调函数的音频队列
+///   - inBuffer: 包含音频数据的音频队列缓冲区
+///   - inStartTime: 当前音频数据的时间戳，用于同步
+///   - inNumberPacketDescription: inPacketDescs参数中的数据包描述的数量。录制VBR（动态比特率）格式时音频队列会提供该参数值，CBR（固定比特率）格式时值为0
+///   - inPacketDescs: 音频数据中一组包的描述，录制VBR格式数据时需要将值传递给AudioFileWritePackets函数
+func AQAudioQueueInputCallback(inUserData: UnsafeMutableRawPointer?,
+                               inAQ: AudioQueueRef,
+                               inBuffer: AudioQueueBufferRef,
+                               inStartTime: UnsafePointer&lt;AudioTimeStamp&gt;,
+                               inNumberPacketDescription: UInt32,
+                               inPacketDescs: UnsafePointer&lt;AudioStreamPacketDescription&gt;?) {
+    //转换为指定类型
+    let audioService = unsafeBitCast(inUserData!, to:AudioService.self)
+    audioService.writePackets(inBuffer: inBuffer)
+    AudioQueueEnqueueBuffer(inAQ, inBuffer, 0, nil);
+    
+    print(&quot;startingPacketCount: \(audioService.startingPacketCount), maxPacketCount: \(audioService.maxPacketCount)&quot;)
+    if (audioService.maxPacketCount &lt;= audioService.startingPacketCount) {
+//        audioService.stopRecord()
+        NotificationCenter.default.post(name: .init(rawValue: &quot;stopRecord&quot;), object: nil, userInfo: nil)
+    }
+}
+
+class AudioService {
+    /// 队列的buffer个数
+    let kNumberBuffers: Int = 3
+    var buffer: UnsafeMutableRawPointer
+    var audioQueueObject: AudioQueueRef?
+    /// 记录音频数据的文件的音频文件对象
+    public var mAudioFile: AudioFileID?
+    /// 初始packet数量
+    var startingPacketCount: UInt32
+    let bytesPerPacket: UInt32 = 2
+    /// 每个音频队列缓冲区的大小(以字节为单位)
+    var bufferByteSize: UInt32 = 0
+    /// 录音最大时长
+    let maxSeconds: UInt32 = 10
+    /// 每次回调时长,单位秒
+    let second: UInt32 = 3
+    /// 每次回调所需写入的packet的数量 = 采样频率 * 每次回调时长
+    let numPacketsToWrite: UInt32
+    /// 当前录音的最大写入packet数量 = 采样频率 * 录音最大时长
+    var maxPacketCount: UInt32
+    /// 录音采样频率
+    let sampleRate = 44100.0
+    /// 音频格式
+    var audioFormat: AudioStreamBasicDescription {
+        return AudioStreamBasicDescription(mSampleRate: sampleRate,
+                                           mFormatID: kAudioFormatLinearPCM,
+                                           mFormatFlags: AudioFormatFlags(kLinearPCMFormatFlagIsSignedInteger | kLinearPCMFormatFlagIsPacked),
+                                           mBytesPerPacket: 2,
+                                           mFramesPerPacket: 1,
+                                           mBytesPerFrame: 2,
+                                           mChannelsPerFrame: 1,
+                                           mBitsPerChannel: 16,
+                                           mReserved: 0)
+    }
+    /// 录音开始标志
+    var isRecording:Bool = false
+
+    init() {
+        startingPacketCount = 0
+        numPacketsToWrite = UInt32(sampleRate) * second
+        maxPacketCount = (UInt32(sampleRate) * maxSeconds)
+        buffer = UnsafeMutableRawPointer(malloc(Int(maxPacketCount * bytesPerPacket)))
+        
+        print(&quot;startRecord&quot;)
+        guard audioQueueObject == nil else  { return }
+        prepareForRecord()
+    }
+
+    deinit {
+        buffer.deallocate()
+    }
+
+    func startRecord() {
+//        print(&quot;startRecord&quot;)
+//        guard audioQueueObject == nil else  { return }
+//        prepareForRecord()
+        let err: OSStatus = AudioQueueStart(audioQueueObject!, nil)
+        print(&quot;err: \(err)&quot;)
+    }
+
+    func stopRecord() {
+        AudioQueueStop(audioQueueObject!, true)
+        AudioQueueDispose(audioQueueObject!, true)
+        audioQueueObject = nil
+    }
+    
+
+    private func prepareForRecord() {
+        print(&quot;prepareForRecord&quot;)
+        var audioFormat = self.audioFormat
+    
+        //创建一个录音队列
+        if AudioQueueNewInput(&amp;audioFormat,
+                              AQAudioQueueInputCallback,
+                              unsafeBitCast(self, to: UnsafeMutableRawPointer.self),
+                              CFRunLoopGetCurrent(),
+                              CFRunLoopMode.commonModes.rawValue,
+                              0,
+                              &amp;audioQueueObject) == noErr {
+            print(&quot;录音队列创建成功!&quot;)
+        } else {
+            print(&quot;录音队列创建失败!!&quot;)
+            return
+        }
+        
+        // 获取设置的音频流格式
+        var dataFormatSize: UInt32 = UInt32(MemoryLayout&lt;AudioStreamBasicDescription&gt;.size)
+        //用以下方法验证获取到音频格式是否与我们设置的相符
+        if AudioQueueGetProperty(audioQueueObject!, kAudioQueueProperty_StreamDescription, &amp;audioFormat, &amp;dataFormatSize) == noErr {
+            print(&quot;音频流格式设置成功!&quot;)
+        } else {
+            print(&quot;音频流格式设置失败!!&quot;)
+            return
+        }
+        
+        // 创建音频文件路径
+        let fileManager = FileManager()
+        let filePath = NSSearchPathForDirectoriesInDomains(.documentDirectory, .userDomainMask, true).first?.appending(&quot;/record.caf&quot;)
+        if !fileManager.fileExists(atPath: filePath!) {
+            fileManager.createFile(atPath: filePath!, contents: nil, attributes: nil)
+        }
+        let outputURL = URL(fileURLWithPath: filePath!)
+        // 创建音频文件
+        if AudioFileCreateWithURL(outputURL as CFURL, kAudioFileCAFType, &amp;audioFormat, .eraseFile, &amp;mAudioFile) == noErr {
+            print(&quot;创建音频文件成功！&quot;)
+            print(&quot;音频文件URL: &quot;, outputURL)
+        } else {
+            print(&quot;创建音频文件失败!！&quot;)
+            return
+        }
+        
+        
+        startingPacketCount = 0;
+        var buffers = Array&lt;AudioQueueBufferRef?&gt;(repeating: nil, count: kNumberBuffers)
+        /// 计算Audio Queue中每个buffer的大小
+        bufferByteSize = numPacketsToWrite * audioFormat.mBytesPerPacket
+        // 内存分配,入队
+        for bufferIndex in 0 ..&lt; buffers.count {
+            AudioQueueAllocateBuffer(audioQueueObject!, bufferByteSize, &amp;buffers[bufferIndex])
+            AudioQueueEnqueueBuffer(audioQueueObject!, buffers[bufferIndex]!, 0, nil)
+        }
+        
+        
+    }
+    
+    func writePackets(inBuffer: AudioQueueBufferRef) {
+        print(&quot;writePackets&quot;)
+        //缓冲区中数据的总字节数除以每个数据包的(常数)字节数
+        var numPackets: UInt32 = (inBuffer.pointee.mAudioDataByteSize / bytesPerPacket)
+        if ((maxPacketCount - startingPacketCount) &lt; numPackets) {
+            numPackets = (maxPacketCount - startingPacketCount)
+        }
+        print(&quot;writePackets mAudioDataByteSize: \(inBuffer.pointee.mAudioDataByteSize), numPackets: \(numPackets)&quot;)
+        
+        if 0 &lt; numPackets {
+            //将当前buffer添到总的buffer中
+            memcpy(buffer.advanced(by: Int(bytesPerPacket * startingPacketCount)),
+                   inBuffer.pointee.mAudioData,
+                   Int(bytesPerPacket * numPackets))
+           
+            
+            //将缓冲区的内容写入音频数据文件
+            if AudioFileWritePackets(mAudioFile!,
+                                     false,
+                                     bufferByteSize,
+                                     nil,
+                                     Int64(startingPacketCount),
+                                     &amp;numPackets,
+                                     inBuffer.pointee.mAudioData) == noErr {
+                print(&quot;当前缓冲区已写入！&quot;)
+            } else {
+                print(&quot;写入失败！！&quot;)
+            }
+             startingPacketCount += numPackets
+        }
+        
+    }
+}
+
+</code></pre>
+</li>
+</ul>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[AudioQueue分片录音原理]]></title>
         <id>https://luolijie97.github.io/post/audioqueue-fen-pian-lu-yin-yuan-li</id>
@@ -63,15 +267,7 @@
 </ul>
 <h3 id="5-使用alamofiire将音频传给服务器">5、使用Alamofiire将音频传给服务器</h3>
 <ul>
-<li>获取当前乐谱的&quot;opern_id&quot;、&quot;algorithm&quot;、&quot;num&quot;、&quot;user_id&quot;、&quot;thirdSessionId&quot;、&quot;isLastFrame&quot;等字段，并注明传送的音频文件的后缀名wav、文件名、以及mime类型&quot;audio/wav&quot;</li>
-<li>调用AF.upload方法将音频传给后端</li>
-<li>根据服务器返回的errorCode进行判断：
-<ul>
-<li>如果errorCode=0，表明当前分片的传送没有问题。此时会从服务器<strong>msg = successful</strong></li>
-<li>如果errorCode=1，表明传送过程中发生错误，此时会将之前所有的wav音频发送到服务器。此错误码只会在结束录制时从服务器得到，因而传递的是本次录音获得的完整的wav音频</li>
-<li>如果errorCode=2，表明使用分片传送成功。此时会从服务器返回算法处理后的结果以及音频文件的相关url和创建时间等信息，我们会将整个结果以json文件的格式保存到本地，以便后续处理</li>
-</ul>
-</li>
+<li>实际项目中可根据需要，结合Alamofire实现客户端与服务器之前的音频分片传输。在回调函数<strong>AQAudioQueueInputCallback</strong>中，我们可以拿到回调的音频流<strong>inBuffer</strong>。</li>
 </ul>
 <h3 id="6-停止录音">6、停止录音</h3>
 <ul>

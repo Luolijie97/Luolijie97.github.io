@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 
 <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css" integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr" crossorigin="anonymous">
-<link rel="shortcut icon" href="https://luolijie97.github.io//favicon.ico?v=1584525549561">
+<link rel="shortcut icon" href="https://luolijie97.github.io//favicon.ico?v=1584525967418">
 <link rel="stylesheet" href="https://luolijie97.github.io//styles/main.css">
 
 
@@ -30,7 +30,7 @@
   <div class="top-container" data-aos="fade-right">
     <div class="top-header-container">
       <a class="site-title-container" href="https://luolijie97.github.io/">
-        <img src="https://luolijie97.github.io//images/avatar.png?v=1584525549561" class="site-logo">
+        <img src="https://luolijie97.github.io//images/avatar.png?v=1584525967418" class="site-logo">
         <h1 class="site-title">llj的blog</h1>
       </a>
       <div class="menu-btn" @click="menuVisible = !menuVisible">
@@ -143,15 +143,7 @@
 </ul>
 <h3 id="5-使用alamofiire将音频传给服务器">5、使用Alamofiire将音频传给服务器</h3>
 <ul>
-<li>获取当前乐谱的&quot;opern_id&quot;、&quot;algorithm&quot;、&quot;num&quot;、&quot;user_id&quot;、&quot;thirdSessionId&quot;、&quot;isLastFrame&quot;等字段，并注明传送的音频文件的后缀名wav、文件名、以及mime类型&quot;audio/wav&quot;</li>
-<li>调用AF.upload方法将音频传给后端</li>
-<li>根据服务器返回的errorCode进行判断：
-<ul>
-<li>如果errorCode=0，表明当前分片的传送没有问题。此时会从服务器<strong>msg = successful</strong></li>
-<li>如果errorCode=1，表明传送过程中发生错误，此时会将之前所有的wav音频发送到服务器。此错误码只会在结束录制时从服务器得到，因而传递的是本次录音获得的完整的wav音频</li>
-<li>如果errorCode=2，表明使用分片传送成功。此时会从服务器返回算法处理后的结果以及音频文件的相关url和创建时间等信息，我们会将整个结果以json文件的格式保存到本地，以便后续处理</li>
-</ul>
-</li>
+<li>实际项目中可根据需要，结合Alamofire实现客户端与服务器之前的音频分片传输。在回调函数<strong>AQAudioQueueInputCallback</strong>中，我们可以拿到回调的音频流<strong>inBuffer</strong>。</li>
 </ul>
 <h3 id="6-停止录音">6、停止录音</h3>
 <ul>
