@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://luolijie97.github.io/</id>
     <title>llj的blog</title>
-    <updated>2020-03-18T10:06:51.275Z</updated>
+    <updated>2020-03-18T10:12:09.042Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://luolijie97.github.io/"/>
     <link rel="self" href="https://luolijie97.github.io/atom.xml"/>
@@ -11,7 +11,7 @@
     <icon>https://luolijie97.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, llj的blog</rights>
     <entry>
-        <title type="html"><![CDATA[AudioQueue音频队列录音使用]]></title>
+        <title type="html"><![CDATA[AudioQueue学习（二）: 音频队列录音的使用]]></title>
         <id>https://luolijie97.github.io/post/audioqueue-yin-pin-dui-lie-lu-yin-shi-yong</id>
         <link href="https://luolijie97.github.io/post/audioqueue-yin-pin-dui-lie-lu-yin-shi-yong">
         </link>
@@ -215,7 +215,7 @@ class AudioService {
 ]]></content>
     </entry>
     <entry>
-        <title type="html"><![CDATA[AudioQueue分片录音原理]]></title>
+        <title type="html"><![CDATA[AudioQueue学习（一）: 分片录音原理]]></title>
         <id>https://luolijie97.github.io/post/audioqueue-fen-pian-lu-yin-yuan-li</id>
         <link href="https://luolijie97.github.io/post/audioqueue-fen-pian-lu-yin-yuan-li">
         </link>
