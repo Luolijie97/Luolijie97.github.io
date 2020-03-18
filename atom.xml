@@ -2,7 +2,7 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://luolijie97.github.io/</id>
     <title>llj的blog</title>
-    <updated>2020-01-27T05:02:51.019Z</updated>
+    <updated>2020-03-18T09:34:10.606Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://luolijie97.github.io/"/>
     <link rel="self" href="https://luolijie97.github.io/atom.xml"/>
@@ -10,6 +10,77 @@
     <logo>https://luolijie97.github.io/images/avatar.png</logo>
     <icon>https://luolijie97.github.io/favicon.ico</icon>
     <rights>All rights reserved 2020, llj的blog</rights>
+    <entry>
+        <title type="html"><![CDATA[AudioQueue分片录音原理]]></title>
+        <id>https://luolijie97.github.io/post/audioqueue-fen-pian-lu-yin-yuan-li</id>
+        <link href="https://luolijie97.github.io/post/audioqueue-fen-pian-lu-yin-yuan-li">
+        </link>
+        <updated>2020-03-18T09:31:31.000Z</updated>
+        <content type="html"><![CDATA[<h2 id="基本原理介绍">基本原理介绍</h2>
+<ul>
+<li>要在 <code>iOS</code> 设备上录制音频，苹果推荐我们使用 <code>AVFoundation</code> 框架中的 <code>AVAudioRecorder</code> 类。虽然用法比较简单，但是不支持流式；这就意味着在录音时，必须等到录音结束后，才能获取到录音数据。这给应用造成了很大的局限性。为了解决这个问题，我们就需要使用 <code>Audio Queue Services</code> 来录制音频。</li>
+</ul>
+<h2 id="工作原理">工作原理</h2>
+<img src="https://developer.apple.com/library/archive/documentation/MusicAudio/Conceptual/AudioQueueProgrammingGuide/Art/recording_callback_function_2x.png" alt="Illustration of the recording process when using an audio queue" style="zoom:33%;" />
+<ul>
+<li>音频的输入分为上图所示几个步骤：
+<ul>
+<li>步骤1，开始录音。将音频填入第一个缓冲区中</li>
+<li>步骤2中，第一个缓冲区已被填满，此时音频队列将进行回调，并将填满的缓冲区（缓冲区1）传递给回调函数。同时，音频队列将新获得的数据填充另一个缓冲区（缓冲区2）</li>
+<li>在回调函数中需要将音频数据流进行相关操作（写入磁盘）</li>
+<li>在步骤4中，音频队列会将刚刚写入磁盘的缓冲区(buffer 1)重新放入缓冲队列，音频队列再次调用回调(步骤5) ，并将填满的缓冲区（缓冲区2）传递给回调函数，再将这个缓冲区的内容写入音频文件(步骤6)</li>
+<li>上述循环将一直持续到用户停止录音为止</li>
+</ul>
+</li>
+</ul>
+<h2 id="具体操作">具体操作</h2>
+<hr>
+<h3 id="1-设置音频格式">1、设置音频格式</h3>
+<ul>
+<li>设置音频的采样率mSampleRate、PCM流格式mFormatID、标签格式mFormatFlags、声道数mChannelsPerFrame、每个数据包的字节数mBytesPerPacket、每个数据包的帧数mFramesPerPacket、每帧的字节数mBytesPerFrame、语言的采样点数mBitsPerChannel、保留位mReserved</li>
+</ul>
+<h3 id="2-初始化并为audio-queue分配内存">2、初始化并为Audio Queue分配内存</h3>
+<ul>
+<li>创建音频输入队列AudioQueueNewInput，指定回调函数AQAudioQueueInputCallback</li>
+<li>创建缓冲器：分配内存AudioQueueAllocateBuffer，入队AudioQueueEnqueueBuffer</li>
+<li>创建内存空间buffer：用于存放完整录音的数据</li>
+</ul>
+<h3 id="3-启动audio-queue开始录音">3、启动Audio Queue，开始录音</h3>
+<ul>
+<li>AudioQueueStart启动录制</li>
+</ul>
+<h3 id="4-回调函数中接收音频数据">4、回调函数中接收音频数据</h3>
+<pre><code class="language-swift">func AQAudioQueueInputCallback(inUserData: UnsafeMutableRawPointer?,
+                               inAQ: AudioQueueRef,
+                               inBuffer: AudioQueueBufferRef,
+                               inStartTime: UnsafePointer&lt;AudioTimeStamp&gt;,
+                               inNumberPacketDescriptions: UInt32,
+                               inPacketDescs: UnsafePointer&lt;AudioStreamPacketDescription&gt;?) {}
+</code></pre>
+<ul>
+<li>在回调函数AQAudioQueueInputCallback中，inBuffer即为每次填满 Audio Queue产生的音频数据，每次都将当前分片数据加入buffer中</li>
+<li>我们将拿到的inbuffer转换成swift中的NSData数据，并拼接上44字节的WAV格式的头部，即可得到当前分片的wav音频。</li>
+</ul>
+<h3 id="5-使用alamofiire将音频传给服务器">5、使用Alamofiire将音频传给服务器</h3>
+<ul>
+<li>获取当前乐谱的&quot;opern_id&quot;、&quot;algorithm&quot;、&quot;num&quot;、&quot;user_id&quot;、&quot;thirdSessionId&quot;、&quot;isLastFrame&quot;等字段，并注明传送的音频文件的后缀名wav、文件名、以及mime类型&quot;audio/wav&quot;</li>
+<li>调用AF.upload方法将音频传给后端</li>
+<li>根据服务器返回的errorCode进行判断：
+<ul>
+<li>如果errorCode=0，表明当前分片的传送没有问题。此时会从服务器<strong>msg = successful</strong></li>
+<li>如果errorCode=1，表明传送过程中发生错误，此时会将之前所有的wav音频发送到服务器。此错误码只会在结束录制时从服务器得到，因而传递的是本次录音获得的完整的wav音频</li>
+<li>如果errorCode=2，表明使用分片传送成功。此时会从服务器返回算法处理后的结果以及音频文件的相关url和创建时间等信息，我们会将整个结果以json文件的格式保存到本地，以便后续处理</li>
+</ul>
+</li>
+</ul>
+<h3 id="6-停止录音">6、停止录音</h3>
+<ul>
+<li>停止录音队列AudioQueueStop</li>
+<li>移除缓冲区AudioQueueDispose</li>
+<li>将完整的音频buffer数据转成NSData数据，用于处理当音频传输给服务器时errorCode=1的情况</li>
+</ul>
+]]></content>
+    </entry>
     <entry>
         <title type="html"><![CDATA[Accelerate框架之vDSP库的基础使用]]></title>
         <id>https://luolijie97.github.io/post/accelerate-kuang-jia-zhi-vdsp-ku-de-ji-chu-shi-yong</id>
